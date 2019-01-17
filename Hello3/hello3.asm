@@ -12,6 +12,8 @@ PlayerVelX:
 	.db $00
 PlayerVelY:
 	.db $00
+PlayerWalkTimer:
+	.db $00
 CollisionMap:
 	.ds $80
 	.org $C000 ;tell the assembler to start putting this stuff at $C000
@@ -60,7 +62,7 @@ LoadPalettesLoop:
 
 	;;Set up the sprite for the guy
 	;;I'm setting it up as sprite 1 in case I wanna use sprite 0 for scroll effects
-	LDA #$80
+	LDA #$30
 	STA $0204
 	STA $0207
 	LDA #%00000010
@@ -73,6 +75,29 @@ Forever:
 	JMP Forever
 
 NMI:
+	INC PlayerWalkTimer
+	LDA #$08
+	AND PlayerWalkTimer
+	LSR A
+	LSR A
+	LSR A
+	CLC
+	ADC #$21
+	STA $0205 
+
+	LDA $0204
+	CLC
+	ADC #$09
+	STA $01
+	LDA $0207
+	STA $00
+	JSR CheckCollision
+	BNE Grounded
+	INC $0204
+	JMP Ungrounded
+Grounded:
+	INC $0207
+Ungrounded:
 
 	LDA #$00
 	STA $2003
@@ -185,6 +210,28 @@ SetAttributesLoop:
 
 ;;check pixel at ($00, $01)
 CheckCollision:
+	LDA $01
+	LSR a
+	AND #$FC
+	STA $02
+	LDA $00
+	LSR a
+	LSR a
+	LSR a
+	LSR a
+	LSR a
+	LSR a
+	ORA $02
+	TAX
+	LDA $00
+	LSR a
+	LSR a
+	LSR a
+	AND #$07
+	TAY
+	LDA CollisionMap, x
+	AND Demux, y
+	;;zero flag set if no collision
 	RTS
 
 	.bank 1
@@ -199,7 +246,7 @@ Demux:
 	.db $1, $2, $4, $8, $10, $20, $40, $80
 
 HelloWorld:
-	.db $FF,$00,$FF,$00,$FF,$00,$03,$00,$A0,$30, $60, %00000000, $00
+	.db $FF,$00,$FF,$00,$10,$30,$EF,$00,$03,$00,$A0,$30, $60, %00000000, $00
 TileCollisions:
 	.incbin "colmap.bin"
 	.org $FFFA
