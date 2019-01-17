@@ -119,7 +119,13 @@ AfterFlipCheck:
 	ADC #$21
 	JMP DoneAnim
 StandAnim:
+	LDA #$04
+	BIT buttons
+	BNE CrouchAnim
 	LDA #$20
+	JMP DoneAnim
+CrouchAnim:
+	LDA #$23
 DoneAnim:
 	STA $0205
 
