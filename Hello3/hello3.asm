@@ -37,7 +37,7 @@ LoadPalettesLoop:
 	BNE LoadPalettesLoop ;;AKA for(x = 0; x < 20; x++)
 
 
-
+	JSR ClearColMap
 
 	;;Set the parameters for LoadRLETiles then call it
 	LDA #LOW(HelloWorld)
@@ -82,12 +82,17 @@ NMI:
 
 ;;;;;;;;;;;;;subroutines
 ;;Load a RLE-compressed tilemap from the address stored at $00 and $01
+;;also uses $02, $03,$04,$05 as local var
 LoadRLETiles:
 	LDA $2002
 	LDA #$20
 	STA $2006
 	LDA #$00 ; start at the first tile row
 	STA $2006
+
+	STA $04 ; initialize collision byte and bit counters
+	STA $05
+
 	LDX #$00 ; initialize index registers
 	LDY #$00
 NextRun:
@@ -98,7 +103,50 @@ NextRun:
 	INY
 	LDA [$00], y ;get the byte that we are repeating
 RLELoop:
-	STA $2007
+	STA $2007 ;;put the current byte into the PPU
+	STA $02 ;;put that byte aside for a moment
+	;;stow the A, X and Y registers
+	PHA
+	TXA 
+	PHA
+	TYA 
+	PHA
+
+	LDY $02
+	TYA
+	AND #$07
+	TAY
+	LDX Demux, y
+	STX $03 ;;now $03 is the bitmask
+	LDA $02
+	LSR a
+	LSR a
+	LSR a
+	TAY
+	LDA TileCollisions, y
+	AND $03 ;;zero if no collision on this tile
+	BEQ RLENoCol
+	LDY $05
+	LDX Demux, y
+	TXA
+	LDX $04
+	ORA CollisionMap, x
+	STA CollisionMap, x
+RLENoCol:
+	INC $05
+	LDA $05
+	AND #$07
+	STA $05
+	BNE IncColByte
+	INC $04 ;increment col byte counter only when bit counter cycles to zero
+IncColByte:
+	;;restore the X and Y registers
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	;;decrement X and check if the run is done
 	DEX
 	BNE RLELoop
 	INY
@@ -111,8 +159,13 @@ RLELoop:
 DoneLoadingRLETiles:
 	RTS
 
-;;Load collisions from RLE tilemap
-LoadRLECollisions:
+ClearColMap:
+	LDA #0
+	LDX #$80
+ClearColMapLoop:
+	DEX
+	STA CollisionMap, x
+	BNE ClearColMapLoop
 	RTS
 
 ;;;;Set the attribute table to some stuff I guess
@@ -142,8 +195,13 @@ PaletteData:
 	;.db $0F,$31,$32,$33,$0F,$35,$36,$37,$0F,$39,$3A,$3B,$0F,$3D,$3E,$0F  ;background palette data
 	;.db $0F,$1C,$15,$14,$0F,$02,$38,$3C,$0F,$1C,$15,$14,$0F,$02,$38,$3C  ;sprite palette data
 
+Demux:
+	.db $1, $2, $4, $8, $10, $20, $40, $80
+
 HelloWorld:
-	.db $FF,$00,$FF,$00,$FF,$00,$03,$00,$A0,$30,$00
+	.db $FF,$00,$FF,$00,$FF,$00,$03,$00,$A0,$30, $60, %00000000, $00
+TileCollisions:
+	.incbin "colmap.bin"
 	.org $FFFA
 	.dw NMI
 	.dw RESET
