@@ -8,12 +8,14 @@
 ;;$00 through $0F for local vars
 
 	.org $0010
+buttons:
+	.ds 1
 PlayerVelX:
-	.db $00
+	.ds 1
 PlayerVelY:
-	.db $00
+	.ds 1
 PlayerWalkTimer:
-	.db $00
+	.ds 1
 CollisionMap:
 	.ds $80
 	.org $C000 ;tell the assembler to start putting this stuff at $C000
@@ -70,11 +72,42 @@ LoadPalettesLoop:
 	LDA #$20
 	STA $0205
 
+	LDA #$01
+	STA PlayerVelX
+	LDA #$00
+	STA PlayerVelY
 
 Forever:
 	JMP Forever
 
 NMI:
+	LDA #0
+	STA PlayerVelX
+	JSR ReadJoy
+	LDA #$01
+	BIT buttons
+	BNE GoRight
+	LDA #$02
+	BIT buttons
+	BNE GoLeft
+	JMP InputDone
+GoRight:
+	INC PlayerVelX
+	JMP InputDone
+GoLeft:
+	DEC PlayerVelX
+InputDone:
+	LDA PlayerVelX
+	BEQ StandAnim
+	BMI FlipPlayerSprite
+	LDA $0206
+	AND #%10111111
+	JMP AfterFlipCheck
+FlipPlayerSprite:
+	LDA $0206
+	ORA #%01000000
+AfterFlipCheck:
+	STA $0206
 	INC PlayerWalkTimer
 	LDA #$08
 	AND PlayerWalkTimer
@@ -82,32 +115,60 @@ NMI:
 	LSR A
 	LSR A
 	CLC
+	STA $00
 	ADC #$21
-	STA $0205 
+	JMP DoneAnim
+StandAnim:
+	LDA #$20
+DoneAnim:
+	STA $0205
+
+
+	LDA $0207
+	CLC
+	ADC PlayerVelX
+	STA $0207
+	LDA $0204
+	CLC
+	ADC PlayerVelY
+	STA $0204
 
 	LDA $0204
 	CLC
-	ADC #$09
+	ADC #$08
 	STA $01
 	LDA $0207
 	STA $00
+	INC PlayerVelY
 	JSR CheckCollision
-	BNE Grounded
-	INC $0204
-	JMP Ungrounded
+	BEQ Grounded
+	LDA $0204
+	AND #%11111000
+	STA $0204
+	LDX #0
+	LDA #$80
+	BIT buttons
+	BEQ NotJumping
+	LDX #$F5
+NotJumping:
+	STX PlayerVelY
 Grounded:
-	INC $0207
-Ungrounded:
+
+	DEC $0204
 
 	LDA #$00
 	STA $2003
 	LDA #02
 	STA $4014
+
+	INC $0204
 	RTI
 
 ;;;;;;;;;;;;;subroutines
 ;;Load a RLE-compressed tilemap from the address stored at $00 and $01
 ;;also uses $02, $03,$04,$05 as local var
+current_byte = $04
+current_bit = $05
 LoadRLETiles:
 	LDA $2002
 	LDA #$20
@@ -115,8 +176,8 @@ LoadRLETiles:
 	LDA #$00 ; start at the first tile row
 	STA $2006
 
-	STA $04 ; initialize collision byte and bit counters
-	STA $05
+	STA current_byte ; initialize collision byte and bit counters
+	STA current_bit
 
 	LDX #$00 ; initialize index registers
 	LDY #$00
@@ -151,19 +212,19 @@ RLELoop:
 	LDA TileCollisions, y
 	AND $03 ;;zero if no collision on this tile
 	BEQ RLENoCol
-	LDY $05
+	LDY current_bit
 	LDX Demux, y
 	TXA
-	LDX $04
+	LDX current_byte
 	ORA CollisionMap, x
 	STA CollisionMap, x
 RLENoCol:
-	INC $05
-	LDA $05
+	INC current_bit
+	LDA current_bit
 	AND #$07
-	STA $05
+	STA current_bit
 	BNE IncColByte
-	INC $04 ;increment col byte counter only when bit counter cycles to zero
+	INC current_byte ;increment col byte counter only when bit counter cycles to zero
 IncColByte:
 	;;restore the X and Y registers
 	PLA
@@ -209,12 +270,14 @@ SetAttributesLoop:
 
 
 ;;check pixel at ($00, $01)
+sprite_x = $00
+sprite_y = $01
 CheckCollision:
-	LDA $01
+	LDA sprite_y
 	LSR a
 	AND #$FC
 	STA $02
-	LDA $00
+	LDA sprite_x
 	LSR a
 	LSR a
 	LSR a
@@ -223,7 +286,7 @@ CheckCollision:
 	LSR a
 	ORA $02
 	TAX
-	LDA $00
+	LDA sprite_x
 	LSR a
 	LSR a
 	LSR a
@@ -232,6 +295,20 @@ CheckCollision:
 	LDA CollisionMap, x
 	AND Demux, y
 	;;zero flag set if no collision
+	RTS
+
+JOYPAD1 = $4016
+ReadJoy:
+	LDA #$01
+	STA JOYPAD1 ;set strobe bit on joypad
+	STA buttons
+	LSR a
+	STA JOYPAD1 ;reset strobe bit on joypad, locking inputs in place
+ReadJoyLoop:
+	LDA JOYPAD1
+	LSR A
+	ROL buttons
+	BCC ReadJoyLoop
 	RTS
 
 	.bank 1
