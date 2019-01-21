@@ -64,7 +64,7 @@ LoadPalettesLoop:
 
 	;;Set up the sprite for the guy
 	;;I'm setting it up as sprite 1 in case I wanna use sprite 0 for scroll effects
-	LDA #$30
+	LDA #$78
 	STA $0204
 	STA $0207
 	LDA #%00000010
@@ -129,36 +129,69 @@ CrouchAnim:
 DoneAnim:
 	STA $0205
 
-
+	LDA $0204
+	STA $01
+	LDA PlayerVelX
+	BMI MovingLeft
+	CLC
+	ADC #$07
+MovingLeft:
+	CLC
+	ADC $0207
+	STA $00
+	JSR CheckCollision
+	BNE HHit
+	CLC
+	LDA $0204
+	ADC #$07
+	STA $01
+	JSR CheckCollision
+	BNE HHit
+	;no hit occured, finalize horizontal move
 	LDA $0207
 	CLC
 	ADC PlayerVelX
 	STA $0207
+HHit:
+	
+	LDA $0207
+	STA $00
+	LDA PlayerVelY
+	BMI MovingUp
+	CLC
+	ADC #$07
+MovingUp:
+	CLC
+	ADC $0204
+	STA $01
+	JSR CheckCollision
+	BNE VHit
+	CLC
+	LDA $0207
+	ADC #$07
+	STA $00
+	JSR CheckCollision
+	BNE VHit
 	LDA $0204
 	CLC
 	ADC PlayerVelY
 	STA $0204
-
-	LDA $0204
-	CLC
-	ADC #$08
-	STA $01
-	LDA $0207
-	STA $00
+	LDA #$06
+	CMP PlayerVelY
+	BEQ NoVHit
 	INC PlayerVelY
-	JSR CheckCollision
-	BEQ Grounded
-	LDA $0204
-	AND #%11111000
-	STA $0204
-	LDX #0
+	JMP NoVHit
+VHit:
+	LDX #$0
+	LDA PlayerVelY
+	BMI NoJump
 	LDA #$80
 	BIT buttons
-	BEQ NotJumping
+	BEQ NoJump
 	LDX #$F5
-NotJumping:
+NoJump:
 	STX PlayerVelY
-Grounded:
+NoVHit:
 
 	DEC $0204
 
@@ -329,7 +362,7 @@ Demux:
 	.db $1, $2, $4, $8, $10, $20, $40, $80
 
 HelloWorld:
-	.db $FF,$00,$FF,$00,$10,$30,$EF,$00,$03,$00,$A0,$30, $60, %00000000, $00
+	.db $FF,$00,$FF,$00,$10,$30,$EF,$00,$A3,$30, $60, %00000000, $00
 TileCollisions:
 	.incbin "colmap.bin"
 	.org $FFFA
