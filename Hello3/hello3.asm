@@ -16,6 +16,8 @@ PlayerVelY:
 	.ds 1
 PlayerWalkTimer:
 	.ds 1
+PlayerGravTimer:
+	.ds 1
 CollisionMap:
 	.ds $80
 	.org $C000 ;tell the assembler to start putting this stuff at $C000
@@ -179,16 +181,23 @@ MovingUp:
 	LDA #$06
 	CMP PlayerVelY
 	BEQ NoVHit
-	INC PlayerVelY
+	CLC
+	LDA PlayerGravTimer
+	ADC #$20
+	STA PlayerGravTimer
+	LDA PlayerVelY
+	ADC #$00
+	STA PlayerVelY
 	JMP NoVHit
 VHit:
 	LDX #$0
+	STX PlayerGravTimer
 	LDA PlayerVelY
 	BMI NoJump
 	LDA #$80
 	BIT buttons
 	BEQ NoJump
-	LDX #$F5
+	LDX #$FC
 NoJump:
 	STX PlayerVelY
 NoVHit:
