@@ -1,0 +1,97 @@
+<html>
+	<head>
+		<style type="text/css">
+			table {
+				font-size: 8;
+				user-select: none;
+			}
+			td {
+				display: inline-block;
+				height: 10px;
+				width: 10px;
+				margin: 0;
+				padding: 0;
+			}
+			tr {
+				margin: 0;
+				padding: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<input type="text" id="tileMode">
+		<table id="lvlmap">
+		</table>
+		<div id="output">
+		</div>
+		<script>
+
+			function gatherTiles() {
+				var resultArray = [];
+				var rows = Array.from(m.children[0].children);
+				rows.forEach(function(row) {
+					var entries = Array.from(row.children);
+					entries.forEach(function(td) {
+						resultArray.push(td.innerText);
+					});
+				});
+				return resultArray;
+			}
+
+			var hexDigits = "0123456789ABCDEF";
+			function numToHex(num) {
+				var hexString = "";
+				while(num > 0) {
+					hexString = hexDigits[num % 16] + hexString;
+					num = Math.floor(num / 16);
+				}
+				if(hexString.length == 1) {
+					hexString = "0" + hexString;
+				}
+				return hexString;
+			}
+
+			function RLECompress(arr_orig) {
+				var arr = arr_orig.slice();
+				arr.push("X");
+				if(arr.length == 0) return [];
+				var runLength = 1;
+				var runChar = arr[0];
+				var rleArr = [];
+				for(var i = 1; i < arr.length; i++) {
+					if(arr[i] == runChar && runLength < 255) {
+						runLength++;
+					} else {
+						rleArr.push(numToHex(runLength));
+						rleArr.push(runChar);
+						runLength = 1;
+						runChar = arr[i];
+					}
+				}
+
+				return rleArr;
+			}
+
+			function asmFormat(hexStr) {
+				return "$" + hexStr;
+			}
+
+			var stylemap = {
+				"30" : "color : gray; background-color: red;",
+				"00" : "color : white; background-color: black"
+			}
+			var outputField = document.getElementById("output");
+			var paintcolorbox =document.getElementById("tileMode");
+			paintcolorbox.value = "30" 
+			var m = document.getElementById("lvlmap");
+			m.innerHTML = new Array(30).fill("<tr>" + new Array(32).fill("<td style=\"color : white; background-color : black;\">00</td>").join("") + "</tr>").join("");
+			m.addEventListener("mouseover", function(x) { if(x.target.tagName == "TD" && (x.buttons & 1)) {
+				x.target.innerText=paintcolorbox.value;
+				x.target.style = stylemap[paintcolorbox.value];
+
+				outputField.innerText = RLECompress(gatherTiles()).map(asmFormat).join() + ",$00";
+			}
+			})
+		</script>
+	</body>
+</html>
