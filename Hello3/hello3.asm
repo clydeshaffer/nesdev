@@ -5,10 +5,15 @@
 
 	.bank 0
 
+jump_str = $FD
+grav_str = $20
+
 ;;$00 through $0F for local vars
 
 	.org $0010
 buttons:
+	.ds 1
+oldbuttons:
 	.ds 1
 PlayerVelX:
 	.ds 1
@@ -86,6 +91,9 @@ NMI:
 	LDA #0
 	STA PlayerVelX
 	JSR ReadJoy
+	LDA oldbuttons
+	EOR buttons
+	STA oldbuttons
 	LDA #$01
 	BIT buttons
 	BNE GoRight
@@ -121,6 +129,8 @@ AfterFlipCheck:
 	ADC #$21
 	JMP DoneAnim
 StandAnim:
+	LDA PlayerVelY
+	BNE AirAnim
 	LDA #$04
 	BIT buttons
 	BNE CrouchAnim
@@ -128,6 +138,9 @@ StandAnim:
 	JMP DoneAnim
 CrouchAnim:
 	LDA #$23
+	JMP DoneAnim
+AirAnim:
+	LDA #$21
 DoneAnim:
 	STA $0205
 
@@ -159,8 +172,11 @@ HHit:
 	LDA $0207
 	STA $00
 	LDA PlayerVelY
+	SEC
 	BMI MovingUp
+	BEQ ZeroYVel
 	CLC
+ZeroYVel:
 	ADC #$07
 MovingUp:
 	CLC
@@ -183,22 +199,25 @@ MovingUp:
 	BEQ NoVHit
 	CLC
 	LDA PlayerGravTimer
-	ADC #$20
+	ADC #grav_str
 	STA PlayerGravTimer
 	LDA PlayerVelY
 	ADC #$00
 	STA PlayerVelY
 	JMP NoVHit
-VHit:
+VHit:	
 	LDX #$0
-	STX PlayerGravTimer
+	LDY #$FF
 	LDA PlayerVelY
 	BMI NoJump
 	LDA #$80
+	AND oldbuttons
 	BIT buttons
 	BEQ NoJump
-	LDX #$FC
+	LDX #jump_str
+	LDY #$0
 NoJump:
+	STY PlayerGravTimer
 	STX PlayerVelY
 NoVHit:
 
@@ -210,6 +229,10 @@ NoVHit:
 	STA $4014
 
 	INC $0204
+
+	LDA buttons
+	STA oldbuttons
+
 	RTI
 
 ;;;;;;;;;;;;;subroutines
@@ -371,7 +394,7 @@ Demux:
 	.db $1, $2, $4, $8, $10, $20, $40, $80
 
 HelloWorld:
-	.db $FF,$00,$21,$00,$0C,$30,$45,$00,$03,$30,$80,$00,$03,$30,$9F,$00,$04,$30,$11,$00,$04,$30,$1A,$00,$06,$30,$18,$00,$08,$30,$11,$00,$0F,$30,$11,$00,$A0,$30,$00
+	.db $FF,$00,$21,$00,$0C,$30,$12,$00,$02,$30,$31,$00,$03,$30,$80,$00,$03,$30,$9F,$00,$04,$30,$11,$00,$04,$30,$1A,$00,$06,$30,$18,$00,$08,$30,$16,$00,$0A,$30,$11,$00,$A0,$30,$00
 	;.db $FF,$00,$FF,$00,$10,$30,$EF,$00,$A3,$30, $60, %00000000, $00
 TileCollisions:
 	.incbin "colmap.bin"
