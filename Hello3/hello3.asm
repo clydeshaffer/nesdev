@@ -15,6 +15,8 @@ buttons:
 	.ds 1
 oldbuttons:
 	.ds 1
+ScreenScrollX:
+	.ds 1
 PlayerVelX:
 	.ds 1
 PlayerVelY:
@@ -59,8 +61,9 @@ LoadPalettesLoop:
 
 
 	;;Reset scroll
-	LDA #0
+	LDA ScreenScrollX
 	STA $2005
+	LDA #0
 	STA $2005
 
 	;;Enable the PPU NMI, sprites, background rendering
@@ -153,6 +156,8 @@ DoneAnim:
 MovingLeft:
 	CLC
 	ADC $0207
+	CLC
+	ADC ScreenScrollX
 	STA $00
 	JSR CheckCollision
 	BNE HHit
@@ -166,10 +171,22 @@ MovingLeft:
 	LDA $0207
 	CLC
 	ADC PlayerVelX
+	CMP #$C0
+	BCS FollowPlayer
+	CMP #$40
+	BCC FollowPlayer
 	STA $0207
+	JMP HHit
+FollowPlayer:
+	CLC
+	LDA PlayerVelX
+	ADC ScreenScrollX
+	STA ScreenScrollX
 HHit:
 	
 	LDA $0207
+	CLC
+	ADC ScreenScrollX
 	STA $00
 	LDA PlayerVelY
 	SEC
@@ -185,7 +202,7 @@ MovingUp:
 	JSR CheckCollision
 	BNE VHit
 	CLC
-	LDA $0207
+	LDA $00
 	ADC #$07
 	STA $00
 	JSR CheckCollision
@@ -232,6 +249,11 @@ NoVHit:
 
 	LDA buttons
 	STA oldbuttons
+
+	LDA ScreenScrollX
+	STA $2005
+	LDA #0
+	STA $2005
 
 	RTI
 
@@ -394,7 +416,7 @@ Demux:
 	.db $1, $2, $4, $8, $10, $20, $40, $80
 
 HelloWorld:
-	.db $FF,$00,$21,$00,$0C,$30,$12,$00,$02,$30,$31,$00,$03,$30,$80,$00,$03,$30,$9F,$00,$04,$30,$11,$00,$04,$30,$1A,$00,$06,$30,$18,$00,$08,$30,$16,$00,$0A,$30,$11,$00,$A0,$30,$00
+	.db $4D,$00,$01,$09,$01,$06,$02,$0D,$01,$10,$1B,$00,$01,$18,$01,$10,$01,$13,$01,$0D,$01,$05,$AE,$00,$0C,$30,$12,$00,$02,$30,$31,$00,$03,$30,$80,$00,$03,$30,$9F,$00,$04,$30,$11,$00,$04,$30,$1A,$00,$06,$30,$18,$00,$08,$30,$16,$00,$0A,$30,$11,$00,$A0,$30,$00
 	;.db $FF,$00,$FF,$00,$10,$30,$EF,$00,$A3,$30, $60, %00000000, $00
 TileCollisions:
 	.incbin "colmap.bin"
