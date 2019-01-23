@@ -1,7 +1,7 @@
 	.inesprg 1
 	.ineschr 1
 	.inesmap 0
-	.inesmir 0
+	.inesmir 1
 
 	.bank 0
 
@@ -16,7 +16,7 @@ buttons:
 oldbuttons:
 	.ds 1
 ScreenScrollX:
-	.ds 1
+	.ds 2
 PlayerVelX:
 	.ds 1
 PlayerVelY:
@@ -67,7 +67,7 @@ LoadPalettesLoop:
 	STA $2005
 
 	;;Enable the PPU NMI, sprites, background rendering
-	LDA #%10000000
+	LDA #%10000000	
 	STA $2000
 	LDA #%00011110
 	STA $2001
@@ -180,8 +180,19 @@ MovingLeft:
 FollowPlayer:
 	CLC
 	LDA PlayerVelX
+	BPL PosScroll
+	DEC ScreenScrollX+1
+PosScroll:
 	ADC ScreenScrollX
 	STA ScreenScrollX
+	BCC ScrollNoc
+	INC ScreenScrollX+1
+ScrollNoc:
+	LDA ScreenScrollX+1
+	AND #$01
+	ORA #%10000000
+	STA $2000
+
 HHit:
 	
 	LDA $0207
