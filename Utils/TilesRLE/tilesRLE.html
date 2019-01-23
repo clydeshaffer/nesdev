@@ -20,6 +20,7 @@
 	</head>
 	<body>
 		<input type="text" id="tileMode">
+		<button onclick="loadRLE();">LOAD</button>
 		<table id="lvlmap">
 		</table>
 		<div id="output">
@@ -40,6 +41,9 @@
 
 			var hexDigits = "0123456789ABCDEF";
 			function numToHex(num) {
+				if(num == 0) {
+					return "00";
+				}
 				var hexString = "";
 				while(num > 0) {
 					hexString = hexDigits[num % 16] + hexString;
@@ -49,6 +53,15 @@
 					hexString = "0" + hexString;
 				}
 				return hexString;
+			}
+
+			function hexToNum(hexStr) {
+				var num = 0;
+				for(var i = 0; i < hexStr.length; i++) {
+					num *= 16;
+					num += hexDigits.indexOf(hexStr[i]);
+				}
+				return num;
 			}
 
 			function RLECompress(arr_orig) {
@@ -72,6 +85,30 @@
 				return rleArr;
 			}
 
+			function RLEDecode(rleArr) {
+				var decoded = [];
+				for(var i = 0; i < rleArr.length; i += 2) {
+					var count = hexToNum(rleArr[i].substring(1));
+					if(count == 0) return decoded;
+					decoded = decoded.concat(new Array(count).fill(rleArr[i+1].substring(1)));
+				}
+				console.error("no null terminator");
+			}
+
+			function loadRLE() {
+				var decoded = RLEDecode(paintcolorbox.value.split(","));
+				var gridIndex = 0;
+				var rows = Array.from(m.children[0].children);
+				rows.forEach(function(row) {
+					var entries = Array.from(row.children);
+					entries.forEach(function(td) {
+						td.innerText=decoded[gridIndex];
+						td.style = stylemap[decoded[gridIndex]];
+						gridIndex++;
+					});
+				});
+			}
+
 			function asmFormat(hexStr) {
 				return "$" + hexStr;
 			}
@@ -89,7 +126,7 @@
 			m.addEventListener("mouseover", function(x) { 
 				if(x.target.tagName == "TD" && (x.buttons & 1)) {
 					var paintColor = paintcolorbox.value;
-					if(paintColor != "00" paintColor != parseInt(paintColor).toString()) {
+					if(paintColor != numToHex(hexToNum(paintColor))) {
 						paintColor = paintColor[dragCount % paintColor.length];
 						paintColor = numToHex("  ABCDEFGHIJKLMNOPQRSTUVWXYZ!".indexOf(paintColor))
 					}
@@ -98,7 +135,7 @@
 
 				outputField.innerText = RLECompress(gatherTiles()).map(asmFormat).join() + ",$00";
 				dragCount = (dragCount+1) % 256;
-			} else {
+			} else if (!(x.buttons & 1)) {
 				dragCount = 0;	
 			}
 			
