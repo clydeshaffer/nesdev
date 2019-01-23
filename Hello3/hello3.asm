@@ -25,8 +25,12 @@ PlayerWalkTimer:
 	.ds 1
 PlayerGravTimer:
 	.ds 1
+
+	.org $0400
+WaitForFrame:
+	.ds 1
 CollisionMap:
-	.ds $80
+	.ds $100
 	.org $C000 ;tell the assembler to start putting this stuff at $C000
 
 RESET:
@@ -57,8 +61,17 @@ LoadPalettesLoop:
 	STA $00
 	LDA #HIGH(HelloWorld)
 	STA $01
+	LDA #$00
+	STA nametable_offset
 	JSR LoadRLETiles
 
+	LDA #LOW(Map2)
+	STA $00
+	LDA #HIGH(Map2)
+	STA $01
+	LDA #$04
+	STA nametable_offset
+	JSR LoadRLETiles
 
 	;;Reset scroll
 	LDA ScreenScrollX
@@ -88,9 +101,9 @@ LoadPalettesLoop:
 	STA PlayerVelY
 
 Forever:
-	JMP Forever
+	LDA WaitForFrame
+	BNE Forever
 
-NMI:
 	LDA #0
 	STA PlayerVelX
 	JSR ReadJoy
@@ -156,8 +169,6 @@ DoneAnim:
 MovingLeft:
 	CLC
 	ADC $0207
-	CLC
-	ADC ScreenScrollX
 	STA $00
 	JSR CheckCollision
 	BNE HHit
@@ -188,16 +199,10 @@ PosScroll:
 	BCC ScrollNoc
 	INC ScreenScrollX+1
 ScrollNoc:
-	LDA ScreenScrollX+1
-	AND #$01
-	ORA #%10000000
-	STA $2000
 
 HHit:
 	
 	LDA $0207
-	CLC
-	ADC ScreenScrollX
 	STA $00
 	LDA PlayerVelY
 	SEC
@@ -248,6 +253,21 @@ NoJump:
 	STY PlayerGravTimer
 	STX PlayerVelY
 NoVHit:
+	INC WaitForFrame
+
+	JMP Forever
+
+NMI:
+	PHA
+	TXA 
+	PHA
+	TYA 
+	PHA
+
+	LDA ScreenScrollX+1
+	AND #$01
+	ORA #%10000000
+	STA $2000
 
 	DEC $0204
 
@@ -266,22 +286,38 @@ NoVHit:
 	LDA #0
 	STA $2005
 
+	STA WaitForFrame
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+
 	RTI
 
 ;;;;;;;;;;;;;subroutines
 ;;Load a RLE-compressed tilemap from the address stored at $00 and $01
-;;also uses $02, $03,$04,$05 as local var
+;;also uses $02, $03,$04,$05,$06 as local var
 current_byte = $04
 current_bit = $05
+nametable_offset = $06
 LoadRLETiles:
 	LDA $2002
-	LDA #$20
+	LDA nametable_offset
+	ORA #$20
 	STA $2006
 	LDA #$00 ; start at the first tile row
 	STA $2006
 
-	STA current_byte ; initialize collision byte and bit counters
 	STA current_bit
+
+	LDX #$00
+	LDA nametable_offset
+	BEQ FirstColMap
+	LDX #$80
+FirstColMap:
+	STX current_byte ; initialize collision byte and bit counters
 
 	LDX #$00 ; initialize index registers
 	LDY #$00
@@ -351,7 +387,7 @@ DoneLoadingRLETiles:
 
 ClearColMap:
 	LDA #0
-	LDX #$80
+	LDX #$00
 ClearColMapLoop:
 	DEX
 	STA CollisionMap, x
@@ -377,11 +413,19 @@ SetAttributesLoop:
 sprite_x = $00
 sprite_y = $01
 CheckCollision:
+	LDA #$00
+	STA $04
 	LDA sprite_y
 	LSR a
 	AND #$FC
 	STA $02
 	LDA sprite_x
+	CLC
+	ADC ScreenScrollX
+	BCC ColFirstTable
+	LDX #$80
+	STX $04
+ColFirstTable:
 	LSR a
 	LSR a
 	LSR a
@@ -389,8 +433,19 @@ CheckCollision:
 	LSR a
 	LSR a
 	ORA $02
-	TAX
+	ORA $04
+	STA $03
+	LDA ScreenScrollX+1
+	AND #$01
+	BEQ ColSkipFlip
+	LDA $03
+	EOR #$80
+	STA $03
+ColSkipFlip:
+	LDX $03
 	LDA sprite_x
+	CLC
+	ADC ScreenScrollX
 	LSR a
 	LSR a
 	LSR a
@@ -429,6 +484,9 @@ Demux:
 HelloWorld:
 	.db $4D,$00,$01,$09,$01,$06,$02,$0D,$01,$10,$1B,$00,$01,$18,$01,$10,$01,$13,$01,$0D,$01,$05,$AE,$00,$0C,$30,$12,$00,$02,$30,$31,$00,$03,$30,$80,$00,$03,$30,$9F,$00,$04,$30,$11,$00,$04,$30,$1A,$00,$06,$30,$18,$00,$08,$30,$16,$00,$0A,$30,$11,$00,$A0,$30,$00
 	;.db $FF,$00,$FF,$00,$10,$30,$EF,$00,$A3,$30, $60, %00000000, $00
+Map2:
+	;.db $FF,$00,$21,$00,$03,$30,$01,$00,$01,$30,$01,$00,$01,$30,$01,$00,$02,$30,$02,$00,$03,$30,$02,$00,$02,$30,$01,$00,$01,$30,$01,$00,$01,$30,$01,$00,$08,$30,$FF,$00,$E1,$00,$0A,$30,$09,$00,$18,$30,$02,$00,$01,$11,$01,$0A,$01,$15,$02,$00,$6E,$30,$00
+	.db $03,$00,$01,$30,$0A,$00,$02,$31,$13,$00,$01,$30,$05,$00,$12,$31,$08,$00,$05,$30,$1A,$00,$05,$30,$1C,$00,$0D,$30,$88,$00,$05,$30,$03,$00,$0F,$30,$02,$31,$02,$30,$02,$31,$02,$30,$01,$1C,$04,$00,$04,$30,$0A,$00,$01,$18,$01,$02,$01,$15,$01,$04,$01,$09,$01,$15,$01,$09,$01,$06,$01,$08,$01,$02,$01,$11,$01,$18,$01,$02,$01,$15,$01,$04,$01,$09,$01,$15,$01,$09,$01,$06,$01,$08,$01,$02,$01,$11,$FF,$00,$05,$00,$02,$31,$1E,$00,$0A,$31,$16,$00,$10,$31,$10,$00,$0A,$31,$02,$00,$04,$31,$01,$30,$0E,$00,$11,$31,$01,$30,$0E,$00,$01,$31,$04,$00,$06,$31,$01,$00,$01,$31,$02,$00,$02,$31,$01,$30,$0B,$00,$01,$30,$01,$00,$02,$31,$0B,$00,$01,$31,$02,$00,$03,$30,$07,$00,$07,$30,$09,$00,$08,$31,$02,$30,$06,$00,$08,$30,$09,$31,$03,$30,$05,$31,$36,$30,$04,$31,$11,$30,$00
 TileCollisions:
 	.incbin "colmap.bin"
 	.org $FFFA

@@ -85,12 +85,23 @@
 			paintcolorbox.value = "30" 
 			var m = document.getElementById("lvlmap");
 			m.innerHTML = new Array(30).fill("<tr>" + new Array(32).fill("<td style=\"color : white; background-color : black;\">00</td>").join("") + "</tr>").join("");
-			m.addEventListener("mouseover", function(x) { if(x.target.tagName == "TD" && (x.buttons & 1)) {
-				x.target.innerText=paintcolorbox.value;
-				x.target.style = stylemap[paintcolorbox.value];
+			var dragCount = 0;
+			m.addEventListener("mouseover", function(x) { 
+				if(x.target.tagName == "TD" && (x.buttons & 1)) {
+					var paintColor = paintcolorbox.value;
+					if(paintColor != "00" paintColor != parseInt(paintColor).toString()) {
+						paintColor = paintColor[dragCount % paintColor.length];
+						paintColor = numToHex("  ABCDEFGHIJKLMNOPQRSTUVWXYZ!".indexOf(paintColor))
+					}
+				x.target.innerText=paintColor;
+				x.target.style = stylemap[paintColor];
 
 				outputField.innerText = RLECompress(gatherTiles()).map(asmFormat).join() + ",$00";
+				dragCount = (dragCount+1) % 256;
+			} else {
+				dragCount = 0;	
 			}
+			
 			})
 		</script>
 	</body>
